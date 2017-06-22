@@ -82,6 +82,11 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     protected $config;
 
     /**
+     * @var $errorHandler
+     */
+    public $errorHandler = null;
+
+    /**
      * The event dispatcher instance.
      *
      * @var \Illuminate\Contracts\Events\Dispatcher
@@ -131,6 +136,21 @@ class AwsCognitoIdentityGuard implements StatefulGuard
         $this->request = $request;
         $this->provider = $provider;
         $this->config = $config;
+
+        // setup default $this->errorHandler
+        if(isset($this->config['errors']['handler'])) {
+            $handler = $this->config['errors']['handler'];
+            if(is_string($handler)) {
+                if ($handler == AWS_COGNITO_AUTH_THROW_EXCEPTION || $handler == AWS_COGNITO_AUTH_RETURN_ATTEMPT) {
+                    $this->errorHandler = $handler;
+                    throw new AuthAttemptException($response);
+                } elseif(class_exists($handler)) {
+                    $this->errorHandler = App::make($handler);
+                }
+            } elseif($errors['handler'] instanceof Closure) {
+                $this->errorHandler = $handler;
+            }
+        }
     }
 
     /**
@@ -399,16 +419,10 @@ class AwsCognitoIdentityGuard implements StatefulGuard
         $response = $this->attemptCognitoAuthentication($credentials);
 
         if ($response->successful()) {
-            return $errorHandler == AWS_COGNITO_AUTH_RETURN_ATTEMPT ? $response : true;
+            return $this->getErrorHandler($errorHandler) == AWS_COGNITO_AUTH_RETURN_ATTEMPT ? $response : true;
         }
 
-        if ($errorHandler == AWS_COGNITO_AUTH_THROW_EXCEPTION) {
-            throw new AuthAttemptException($response);
-        } elseif ($errorHandler == AWS_COGNITO_AUTH_RETURN_ATTEMPT) {
-            return $response;
-        } elseif ($errorHandler instanceof Closure) {
-            $errorHandler(new AuthAttemptException($response));
-        }
+        $this->handleError($errorHandler);
 
         return false;
     }
@@ -441,23 +455,47 @@ class AwsCognitoIdentityGuard implements StatefulGuard
 
             $this->login($user, $remember);
 
-            return $errorHandler == AWS_COGNITO_AUTH_RETURN_ATTEMPT ? $response : true;
+            return $this->getErrorHandler($errorHandler) == AWS_COGNITO_AUTH_RETURN_ATTEMPT ? $response : true;
         }
+
+        $this->handleError($response);
 
         // If the authentication attempt fails we will fire an event so that the user
         // may be notified of any suspicious attempts to access their account from
         // an unrecognized user. A developer may listen to this event as needed.
         $this->fireFailedEvent($user, $credentials);
 
-        if ($errorHandler == AWS_COGNITO_AUTH_THROW_EXCEPTION) {
-            throw new AuthAttemptException($response);
-        } elseif ($errorHandler == AWS_COGNITO_AUTH_RETURN_ATTEMPT) {
-            return $response;
-        } elseif ($errorHandler instanceof Closure) {
-            $errorHandler(new AuthAttemptException($response));
-        }
-
         return false;
+    }
+
+    /**
+     * Return the current or default handler
+     * @param any $handler
+     * @return any $handler
+     */
+    protected function getErrorHandler($handler = null) {
+        if($handler == null) $handler = $this->errorHandler;
+        return $handler;
+    }
+
+    /**
+     * Handle an error response
+     * @param \Pallant\LaravelAwsCognitoAuth\AuthAttempt $response
+     * @param any $handler
+     * @return bool|\Pallant\LaravelAwsCognitoAuth\AuthAttempt
+     */
+    protected function handleError(AuthAttempt $response, $handler = null) {
+        $handler = $this->getErrorHandler($handler);
+        if(is_object($handler) && method_exists($handler, 'handle')) {
+            return $handler->handle($response);
+        } elseif ($handler == AWS_COGNITO_AUTH_THROW_EXCEPTION) {
+            throw new AuthAttemptException($response);
+        } elseif ($handler == AWS_COGNITO_AUTH_RETURN_ATTEMPT) {
+            return $response;
+        } elseif ($handler instanceof Closure) {
+            return $handler(new AuthAttemptException($response));
+        }
+        return true;
     }
 
     /**
