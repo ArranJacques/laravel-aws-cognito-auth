@@ -5,6 +5,7 @@ namespace Pallant\LaravelAwsCognitoAuth;
 use Aws\CognitoIdentityProvider\CognitoIdentityProviderClient;
 use Aws\CognitoIdentityProvider\Exception\CognitoIdentityProviderException;
 use Carbon\Carbon;
+use Closure;
 use Illuminate\Auth\Events\Attempting;
 use Illuminate\Auth\Events\Authenticated;
 use Illuminate\Auth\Events\Failed;
@@ -27,7 +28,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
 
     /**
      * The name of the Guard. Typically "session".
-     *
      * Corresponds to guard name in authentication configuration.
      *
      * @var string
@@ -247,11 +247,10 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     /**
      * Get the decrypted recaller cookie for the request.
      *
-     * @return \App\Services\Auth\Recaller|null
+     * @return \Pallant\LaravelAwsCognitoAuth\Recaller|null
      */
     protected function recaller()
     {
-        //dd('getting from recaller');
         if (is_null($this->request)) {
             return null;
         }
@@ -390,13 +389,28 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * Validate a user's credentials.
      *
      * @param array $credentials
-     * @return bool
+     * @param mixed $errorHandler
+     * @return bool|\Pallant\LaravelAwsCognitoAuth\AuthAttempt
      */
-    public function validate(array $credentials = [])
+    public function validate(array $credentials = [], $errorHandler = null)
     {
         $this->lastAttempted = $user = $this->provider->retrieveByCredentials($credentials);
 
-        return $this->attemptCognitoAuthentication($credentials) ? true : false;
+        $response = $this->attemptCognitoAuthentication($credentials);
+
+        if ($response->successful()) {
+            return $errorHandler == AWS_COGNITO_AUTH_RETURN_ATTEMPT ? $response : true;
+        }
+
+        if ($errorHandler == AWS_COGNITO_AUTH_THROW_EXCEPTION) {
+            throw new AuthAttemptException($response);
+        } elseif ($errorHandler == AWS_COGNITO_AUTH_RETURN_ATTEMPT) {
+            return $response;
+        } elseif ($errorHandler instanceof Closure) {
+            $errorHandler(new AuthAttemptException($response));
+        }
+
+        return false;
     }
 
     /**
@@ -404,32 +418,44 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      *
      * @param array $credentials
      * @param bool $remember
-     * @return bool
+     * @param mixed $errorHandler
+     * @return bool|\Pallant\LaravelAwsCognitoAuth\AuthAttempt
      */
-    public function attempt(array $credentials = [], $remember = false)
+    public function attempt(array $credentials = [], $remember = false, $errorHandler = null)
     {
         $this->fireAttemptEvent($credentials, $remember);
 
         $this->lastAttempted = $user = $this->provider->retrieveByCredentials($credentials);
 
         // If an implementation of UserInterface was returned we'll attempt to
-        // authenticate with AWS Cognito, and if the auth attempt is successful we'll
-        // log the user into the application and return true.
-        if ($tokens = $this->attemptCognitoAuthentication($credentials)) {
+        // authenticate with AWS Cognito.
+        $response = $this->attemptCognitoAuthentication($credentials);
 
-            $this->cognitoTokens = $this->addTokenExpiryTimes($tokens);
+        // If the authentication attempt was successful then log the user into the
+        // application and return an appropriate response.
+        if ($response->successful()) {
+
+            $this->cognitoTokens = $this->addTokenExpiryTimes($response->getResponse()['AuthenticationResult']);
 
             $this->storeCognitoTokens($this->cognitoTokens);
 
             $this->login($user, $remember);
 
-            return true;
+            return $errorHandler == AWS_COGNITO_AUTH_RETURN_ATTEMPT ? $response : true;
         }
 
         // If the authentication attempt fails we will fire an event so that the user
         // may be notified of any suspicious attempts to access their account from
         // an unrecognized user. A developer may listen to this event as needed.
         $this->fireFailedEvent($user, $credentials);
+
+        if ($errorHandler == AWS_COGNITO_AUTH_THROW_EXCEPTION) {
+            throw new AuthAttemptException($response);
+        } elseif ($errorHandler == AWS_COGNITO_AUTH_RETURN_ATTEMPT) {
+            return $response;
+        } elseif ($errorHandler instanceof Closure) {
+            $errorHandler(new AuthAttemptException($response));
+        }
 
         return false;
     }
@@ -468,16 +494,15 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * Attempt to authenticate with AWS Cognito.
      *
      * @param array $credentials
-     * @return null|array
+     * @return \Pallant\LaravelAwsCognitoAuth\AuthAttempt
      */
     protected function attemptCognitoAuthentication(array $credentials)
     {
-
         if (
             !$username = array_get($credentials, $this->config['username-attribute']) OR
             !$password = array_get($credentials, 'password')
         ) {
-            return null;
+            return new AuthAttempt(false);
         }
 
         try {
@@ -492,10 +517,10 @@ class AwsCognitoIdentityGuard implements StatefulGuard
                 'UserPoolId' => $this->config['pool-id'],
             ]);
 
-            return $response['AuthenticationResult'];
+            return new AuthAttempt(!!$response['AuthenticationResult'], $response->toArray());
 
         } catch (CognitoIdentityProviderException $e) {
-            return null;
+            return new AuthAttempt(false, ['exception' => $e]);
         }
     }
 
@@ -839,7 +864,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * Get the cookie creator instance used by the guard.
      *
      * @return \Illuminate\Contracts\Cookie\QueueingFactory
-     *
      * @throws \RuntimeException
      */
     public function getCookieJar()
@@ -875,7 +899,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     /**
      * Set the event dispatcher instance.
      *
-     * @param \Illuminate\Contracts\Events\Dispatcher  $events
+     * @param \Illuminate\Contracts\Events\Dispatcher $events
      * @return void
      */
     public function setDispatcher(Dispatcher $events)

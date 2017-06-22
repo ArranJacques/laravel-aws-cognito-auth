@@ -18,6 +18,16 @@ class ServiceProvider extends AuthServiceProvider
             __DIR__ . '/config/aws-cognito-auth.php' => config_path('aws-cognito-auth.php'),
         ]);
 
+        $this->registerGuard();
+
+        $this->defineConstants();
+    }
+
+    /**
+     * Register the AWS Cognito guard.
+     */
+    protected function registerGuard()
+    {
         $this->app['auth']->extend('aws-cognito', function (Application $app, $name, array $config) {
 
             $client = $app->make('aws')->createCognitoIdentityProvider();
@@ -41,6 +51,20 @@ class ServiceProvider extends AuthServiceProvider
 
             return $guard;
         });
+    }
+
+    /**
+     * Define constants related to the package.
+     */
+    public function defineConstants()
+    {
+        if (!defined('AWS_COGNITO_AUTH_THROW_EXCEPTION')) {
+            define('AWS_COGNITO_AUTH_THROW_EXCEPTION', 'throw-exception');
+        }
+
+        if (!defined('AWS_COGNITO_AUTH_RETURN_ATTEMPT')) {
+            define('AWS_COGNITO_AUTH_RETURN_ATTEMPT', 'return-attempt');
+        }
     }
 
 }
