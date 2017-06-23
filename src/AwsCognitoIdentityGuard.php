@@ -82,7 +82,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     protected $config;
 
     /**
-     * @var $errorHandler
+     * @var mixed
      */
     public $errorHandler = null;
 
@@ -137,19 +137,9 @@ class AwsCognitoIdentityGuard implements StatefulGuard
         $this->provider = $provider;
         $this->config = $config;
 
-        // setup default $this->errorHandler
-        if(isset($this->config['errors']['handler'])) {
-            $handler = $this->config['errors']['handler'];
-            if(is_string($handler)) {
-                if ($handler == AWS_COGNITO_AUTH_THROW_EXCEPTION || $handler == AWS_COGNITO_AUTH_RETURN_ATTEMPT) {
-                    $this->errorHandler = $handler;
-                    throw new AuthAttemptException($response);
-                } elseif(class_exists($handler)) {
-                    $this->errorHandler = App::make($handler);
-                }
-            } elseif($errors['handler'] instanceof Closure) {
-                $this->errorHandler = $handler;
-            }
+        // Setup default error handler.
+        if (isset($this->config['errors']['handler']) AND $this->config['errors']['handler']) {
+            $this->errorHandler = $this->getErrorHandler($this->config['errors']['handler']);
         }
     }
 
@@ -419,12 +409,14 @@ class AwsCognitoIdentityGuard implements StatefulGuard
         $response = $this->attemptCognitoAuthentication($credentials);
 
         if ($response->successful()) {
-            return $this->getErrorHandler($errorHandler) == AWS_COGNITO_AUTH_RETURN_ATTEMPT ? $response : true;
+            $handler = is_null($errorHandler) ? $this->errorHandler : $errorHandler;
+            return $handler == AWS_COGNITO_AUTH_RETURN_ATTEMPT ? $response : true;
         }
 
-        $this->handleError($errorHandler);
-
-        return false;
+        return $this->handleError(
+            $response,
+            $errorHandler ? $this->getErrorHandler($errorHandler) : $this->errorHandler
+        );
     }
 
     /**
@@ -441,8 +433,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
 
         $this->lastAttempted = $user = $this->provider->retrieveByCredentials($credentials);
 
-        // If an implementation of UserInterface was returned we'll attempt to
-        // authenticate with AWS Cognito.
         $response = $this->attemptCognitoAuthentication($credentials);
 
         // If the authentication attempt was successful then log the user into the
@@ -455,47 +445,62 @@ class AwsCognitoIdentityGuard implements StatefulGuard
 
             $this->login($user, $remember);
 
-            return $this->getErrorHandler($errorHandler) == AWS_COGNITO_AUTH_RETURN_ATTEMPT ? $response : true;
+            $handler = is_null($errorHandler) ? $this->errorHandler : $errorHandler;
+            return $handler == AWS_COGNITO_AUTH_RETURN_ATTEMPT ? $response : true;
         }
-
-        $this->handleError($response);
 
         // If the authentication attempt fails we will fire an event so that the user
         // may be notified of any suspicious attempts to access their account from
         // an unrecognized user. A developer may listen to this event as needed.
         $this->fireFailedEvent($user, $credentials);
 
-        return false;
+        return $this->handleError(
+            $response,
+            $errorHandler ? $this->getErrorHandler($errorHandler) : $this->errorHandler
+        );
     }
 
     /**
-     * Return the current or default handler
-     * @param any $handler
-     * @return any $handler
-     */
-    protected function getErrorHandler($handler = null) {
-        if($handler == null) $handler = $this->errorHandler;
-        return $handler;
-    }
-
-    /**
-     * Handle an error response
+     * Handle a failed authentication attempt.
+     *
      * @param \Pallant\LaravelAwsCognitoAuth\AuthAttempt $response
-     * @param any $handler
-     * @return bool|\Pallant\LaravelAwsCognitoAuth\AuthAttempt
+     * @param mixed $handler
+     * @return mixed
      */
-    protected function handleError(AuthAttempt $response, $handler = null) {
-        $handler = $this->getErrorHandler($handler);
-        if(is_object($handler) && method_exists($handler, 'handle')) {
-            return $handler->handle($response);
+    protected function handleError(AuthAttempt $response, $handler = null)
+    {
+        if (is_object($handler) AND method_exists($handler, 'handle')) {
+            return $handler->handle(new AuthAttemptException($response));
         } elseif ($handler == AWS_COGNITO_AUTH_THROW_EXCEPTION) {
             throw new AuthAttemptException($response);
         } elseif ($handler == AWS_COGNITO_AUTH_RETURN_ATTEMPT) {
             return $response;
         } elseif ($handler instanceof Closure) {
-            return $handler(new AuthAttemptException($response));
+            $handler(new AuthAttemptException($response));
         }
-        return true;
+
+        return false;
+    }
+
+    /**
+     * @param $handler
+     * @return mixed|null
+     */
+    protected function getErrorHandler($handler)
+    {
+        if (is_string($handler)) {
+            if (defined($handler)) {
+                return constant($handler);
+            } elseif (in_array($handler, [AWS_COGNITO_AUTH_THROW_EXCEPTION, AWS_COGNITO_AUTH_RETURN_ATTEMPT])) {
+                return $handler;
+            } elseif (class_exists($handler)) {
+                return app()->make($handler);
+            }
+        } elseif ($handler instanceof Closure) {
+            return $handler;
+        }
+
+        return null;
     }
 
     /**

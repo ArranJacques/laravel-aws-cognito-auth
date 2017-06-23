@@ -15,6 +15,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Default Authentication Error Handler
+    |--------------------------------------------------------------------------
+    |
+    | A Default error handler for handling failed authentication attempts.
+    | See docs for available options.
+    |
+    */
+
+    'errors' => [
+        'handler' => null,
+    ],
+
+
+    /*
+    |--------------------------------------------------------------------------
     | User Pool Username
     |--------------------------------------------------------------------------
     |

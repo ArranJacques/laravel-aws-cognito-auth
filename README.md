@@ -2,19 +2,25 @@
 
 A simple authentication package for Laravel 5 for authenticating users in Amazon Cognito User Pools.
 
+This is package works with Laravel's native authentication system and allows the authentication of users that are already registered in Amazon Cognito User Pools. It does not provide functionality for user management, i.e., registering user's into User Pools, password resets, etc.
+
+
+### Contents
+
 - [Installation and Setup](#installation-and-setup)
     - [Install](#install)
     - [Configure](#configure)
 - [Usage](#usage)
     - [Authenticating](#authenticating)
     - [Handling Failed Authentication](#handling-failed-authentication)
-        - [No Error Handling](#no-error-handling)
-        - [Throw Exception](#throw-exception)
-        - [Return Attempt Instance](#return-attempt-instance)
-        - [Using a Closure](#using-a-closure)
+        - [Methods](#methods)
+            - [No Error Handling](#no-error-handling)
+            - [Throw Exception](#throw-exception)
+            - [Return Attempt Instance](#return-attempt-instance)
+            - [Using a Closure](#using-a-closure)
+            - [Using a Custom Class](#using-a-custom-class)
+        - [Default Error Handler](#default-error-handler)
         - [About AuthAttemptException](#about-authattemptexception)
-
-This is package works with Laravel's native authentication system and allows the authentication of users that are already registered in Amazon Cognito User Pools. It does not provide functionality for user management, i.e., registering user's into User Pools, password resets, etc.
 
 ## Installation and Setup
 
@@ -200,7 +206,11 @@ Auth::getCognitoRefreshTokenExpiryTime();
 
 AWS Cognito may fail to authenticate for a number of reasons, from simply entering the wrong credentials, or because additional checks or actions are required before the user can be successfully authenticated.
 
-So that you can deal with failed attempts appropriately several options are available to you within the package that dictate how failed attempts should be handled. You can specify how failed attempts should be handled by passing an additional `$errorHandler` argument when calling the `Auth::attempt()` and `Auth::validate()` methods.
+So that you can deal with failed attempts appropriately several options are available to you within the package that dictate how failed attempts should be handled.
+
+#### Methods
+
+You can specify how failed attempts should be handled by passing an additional `$errorHandler` argument when calling the `Auth::attempt()` and `Auth::validate()` methods.
 
 ```php
 Auth::attempt(array $credentials, [bool $remember], [$errorHandler]);
@@ -208,11 +218,11 @@ Auth::attempt(array $credentials, [bool $remember], [$errorHandler]);
 Auth::validate(array $credentials, [$errorHandler]);
 ```
 
-#### No Error Handling
+##### No Error Handling
 
 If an `$errorHandler` isn't passed then all failed authentication attempts will be handled and suppressed internally, and both the `Auth::attempt()` and `Auth::validate()` methods will simply return `true` or `false` as to whether the authentication attempt was successful.
 
-#### Throw Exception
+##### Throw Exception
 
 To have the `Auth::attempt()` and `Auth::validate()` methods throw an exception pass `AWS_COGNITO_AUTH_THROW_EXCEPTION` as the `$errorHandler` argument.
 
@@ -228,7 +238,7 @@ Auth::validate([
 ], AWS_COGNITO_AUTH_THROW_EXCEPTION);
 ```
 
-If the authentication fails then an `\Pallant\LaravelAwsCognitoAuth\AuthAttemptException` will be thrown, which can be used to access the underlying error by calling the exception's `getResponse()` method. [About AuthAttemptException](#about-authattemptexception).
+If the authentication fails then a `\Pallant\LaravelAwsCognitoAuth\AuthAttemptException` exception will be thrown, which can be used to access the underlying error by calling the exception's `getResponse()` method. [About AuthAttemptException](#about-authattemptexception).
 
 ```php
 try {
@@ -236,13 +246,13 @@ try {
         'email' => 'xxxxx@xxxxx.xx',
         'password' => 'xxxxxxxxxx',
     ], false, AWS_COGNITO_AUTH_THROW_EXCEPTION);
-} catch (\Exception $e) {
+} catch (\Pallant\LaravelAwsCognitoAuth\AuthAttemptException $e) {
     $response = $e->getResponse();
     // Handle error...
 }
 ```
 
-#### Return Attempt Instance
+##### Return Attempt Instance
 
 To have the `Auth::attempt()` and `Auth::validate()` methods return an attempt object pass `AWS_COGNITO_AUTH_RETURN_ATTEMPT` as the `$errorHandler` argument.
 
@@ -274,7 +284,7 @@ if ($attempt->successful()) {
 }
 ```
 
-For unsuccessful authentication attempts the attempt instance's `getResponse()` method can be used to access the underlying error. This method will return an array of data and depending on the reason why the authentication attempt failed the array will contain different values.
+For unsuccessful authentication attempts the attempt instance's `getResponse()` method can be used to access the underlying error. This method will return an array of data that will contain different values depending on the reason for the failed attempt.
 
 In events where the AWS Cognito API has thrown an exception, such as when invalid credentials are used, the array that is returned will contain the original exception.
 
@@ -294,7 +304,7 @@ In events where the AWS Cognito API has failed to authenticate for some other re
 ]
 ```
 
-#### Using a Closure
+##### Using a Closure
 
 To handle failed authentication attempts with a closure pass one as the `Auth::attempt()` and `Auth::validate()` methods' `$errorHandler` argument.
 
@@ -318,11 +328,87 @@ Auth::validate([
 
 If the authentication fails then the closure will be run and will be passed an `\Pallant\LaravelAwsCognitoAuth\AuthAttemptException` instance, which can be used to access the underlying error by calling the exception's `getResponse()` method. [About AuthAttemptException](#about-authattemptexception).
 
+
+##### Using a Custom Class
+
+To handle failed authentication attempts with a custom class pass the classes name as the `Auth::attempt()` and `Auth::validate()` methods' `$errorHandler` argument.
+
+```php
+Auth::attempt([
+    'email' => 'xxxxx@xxxxx.xx',
+    'password' => 'xxxxxxxxxx',
+], false, \App\MyCustomErrorHandler::class);
+
+Auth::validate([
+    'email' => 'xxxxx@xxxxx.xx',
+    'password' => 'xxxxxxxxxx',
+], \App\MyCustomErrorHandler::class);
+```
+
+The error handler class should have a `handle()` method, which will be called when an authentication attempt fails. The `handle()` method will be passed an `\Pallant\LaravelAwsCognitoAuth\AuthAttemptException` instance, which can be used to access the underlying error by calling the exception's `getResponse()` method. [About AuthAttemptException](#about-authattemptexception).
+
+```php
+<?php
+
+namespace App;
+
+use Pallant\LaravelAwsCognitoAuth\AuthAttemptException;
+
+class MyCustomErrorHandler
+{
+    public function handle(AuthAttemptException $e)
+    {
+        $response = $e->getResponse();
+        // Handle error...
+    }
+}
+
+```
+
+#### Default Error Handler
+
+As well defining the error handler in line, you can also define a default error handler in the `config/aws-cognito-auth.php` file. The same error handling methods are available as detailed above. When using `AWS_COGNITO_AUTH_THROW_EXCEPTION` or `AWS_COGNITO_AUTH_RETURN_ATTEMPT` set the value as a string, do not use the constant.
+
+**Throw Exception:**
+
+```php
+'errors' => [
+    'handler' => 'AWS_COGNITO_AUTH_THROW_EXCEPTION',
+],
+```
+
+**Return Attempt:**
+
+```php
+'errors' => [
+    'handler' => 'AWS_COGNITO_AUTH_RETURN_ATTEMPT',
+],
+```
+
+**Use a Closure:**
+
+```php
+'errors' => [
+    'handler' => function (\Pallant\LaravelAwsCognitoAuth\AuthAttemptException $e) {
+        $e->getResponse();
+        // Do something...
+    },
+],
+```
+
+**Use a Custom Class:**
+
+```php
+'errors' => [
+    'handler' => \App\MyCustomErrorHandler::class,
+],
+```
+
 #### About AuthAttemptException
 
 An `\Pallant\LaravelAwsCognitoAuth\AuthAttemptException` exception will be thrown when using the `AWS_COGNITO_AUTH_THROW_EXCEPTION` error handler, or will be passed as an argument to a closure when using the `Clousre` method of error handling.
 
-The `\Pallant\LaravelAwsCognitoAuth\AuthAttemptException::getResponse()` method will return an array of data and depending on the reason why the authentication attempt failed the array will contain different values.
+The exception's `getResponse()` method will return an array of data that will contain different values depending on the reason for the failed attempt.
 
 In events where the AWS Cognito API has thrown an exception, such as when invalid credentials are used, the array that is returned will contain the original exception.
 
