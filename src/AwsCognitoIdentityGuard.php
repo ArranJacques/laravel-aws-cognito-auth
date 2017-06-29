@@ -476,7 +476,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
         } elseif ($handler == AWS_COGNITO_AUTH_RETURN_ATTEMPT) {
             return $response;
         } elseif ($handler instanceof Closure) {
-            $handler(new AuthAttemptException($response));
+            return $handler(new AuthAttemptException($response));
         }
 
         return false;
