@@ -31,7 +31,7 @@ This package makes use of the  [aws-sdk-php-laravel](https://github.com/aws/aws-
 Add `pallant/laravel-aws-cognito-auth` to `composer.json` and run `composer update` to pull down the latest version:
 
 ```
-"pallant/laravel-aws-cognito-auth": "~1.*"
+"pallant/laravel-aws-cognito-auth": "~1.0"
 ```
 
 Or use `composer require`:
