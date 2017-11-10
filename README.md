@@ -1,4 +1,4 @@
-## Laravel AWS Cognito Auth
+# Laravel AWS Cognito Auth
 
 A simple authentication package for Laravel 5 for authenticating users in Amazon Cognito User Pools.
 
@@ -10,6 +10,7 @@ This is package works with Laravel's native authentication system and allows the
 - [Installation and Setup](#installation-and-setup)
     - [Install](#install)
     - [Configure](#configure)
+    - [Users Table](#users-table)
 - [Usage](#usage)
     - [Authenticating](#authenticating)
     - [Handling Failed Authentication](#handling-failed-authentication)
@@ -118,9 +119,6 @@ When creating an App for your User Pool the default Refresh Token Expiration tim
 ]
 ```
 
-
-In the `config/aws-cognito-auth.php` file the `username-attribute` value defines what attribute of your `User` model corresponds to a user's username in your User Pool. By default the package assumes the user's email address is also their username within your User Pool. If you are using a different value as the username within the User Pool then update the `username-attribute` accordingly.
-
 Open the `config/aws.php` file and set the `region` value to whatever region your User Pool is in. The default `config/aws.php` file that is created when using the `php artisan vendor:publish --provider="Aws\Laravel\AwsServiceProvider"` command doesn't include the IAM credential properties so you'll need to add them manually. Add the following to the `config/aws.php` file where `key` is an IAM user Access Key Id and `secret` is the corresponding Secret key:
 
 ```php
@@ -143,6 +141,14 @@ Your final `config/aws.php` should look something like this:
     'L5MOD/' . AwsServiceProvider::VERSION,
 ],
 ```
+
+### Users Table
+
+Cognito is not treated as a "database of users", and is only used to authorise the users. A request to Cognito is not made unless the user already exists in the app's database. This means you'll still need a `users` table populated with the users that you want to authenticate. At a minimum this table will need an `id`, `email` and `remember_token` field.
+
+In Cognito every user has a `username`. When authenticating with Cognito this package will need one of the user's attributes to match the user's Congnito username. By default it uses the user's `email` attribute.
+
+If you want to use a different attribute to store the user's Cognito username then you can do so by first adding a new field to your `users` table, for example `cognito_username`, and then setting the `username-attribute` in the `config/aws-cognito-auth.php` file to be the name of that field.
 
 ## Usage
 
