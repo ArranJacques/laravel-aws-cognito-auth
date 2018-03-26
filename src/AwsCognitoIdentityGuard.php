@@ -170,7 +170,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
 
         if (!is_null($id) AND $user = $this->provider->retrieveById($id)) {
 
-            if (!$tokens = $this->getCognitoTokens()) {
+            if (!$tokens = $this->getCognitoTokensFromSession()) {
                 return null;
             }
 
@@ -184,17 +184,17 @@ class AwsCognitoIdentityGuard implements StatefulGuard
 
         if (is_null($user) AND !is_null($recaller)) {
 
-            $user = $this->userFromRecaller($recaller);
+            $user = $this->getUserFromRecaller($recaller);
 
             if ($user) {
 
-                if (!$cognitoTokens = $this->cognitoTokensFromRecaller($recaller)) {
+                if (!$cognitoTokens = $this->getCognitoTokensFromRecaller($recaller)) {
                     return null;
                 }
 
                 $this->updateSession($user->getAuthIdentifier());
 
-                $this->storeCognitoTokens($cognitoTokens);
+                $this->storeCognitoTokensInSession($this->cognitoTokens);
 
                 $this->fireLoginEvent($user, true);
             }
@@ -209,7 +209,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * @param Recaller $recaller
      * @return mixed
      */
-    protected function userFromRecaller($recaller)
+    protected function getUserFromRecaller($recaller)
     {
         if (!$recaller->valid() OR $this->recallAttempted) {
             return null;
@@ -233,7 +233,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * @param Recaller $recaller
      * @return null|array
      */
-    protected function cognitoTokensFromRecaller($recaller)
+    protected function getCognitoTokensFromRecaller($recaller)
     {
         if (!$recaller->valid() OR !$refreshToken = $recaller->cognitoRefreshToken()) {
             return null;
@@ -248,8 +248,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
         $tokens['RefreshTokenExpires'] = $recaller->cognitoRefreshTokenExpTime();
 
         $this->cognitoTokens = $tokens;
-
-        $this->storeCognitoTokens($this->cognitoTokens);
 
         return $this->cognitoTokens;
     }
@@ -277,7 +275,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      *
      * @return null|array
      */
-    protected function getCognitoTokens()
+    protected function getCognitoTokensFromSession()
     {
         if ($this->cognitoTokens) {
             return $this->cognitoTokens;
@@ -307,7 +305,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
 
             $tokens = $this->addTokenExpiryTimes($tokens, false);
 
-            $this->storeCognitoTokens($tokens);
+            $this->storeCognitoTokensInSession($tokens);
         }
 
         $this->cognitoTokens = $tokens;
@@ -441,7 +439,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
 
             $this->cognitoTokens = $this->addTokenExpiryTimes($response->getResponse()['AuthenticationResult']);
 
-            $this->storeCognitoTokens($this->cognitoTokens);
+            $this->storeCognitoTokensInSession($this->cognitoTokens);
 
             $this->login($user, $remember);
 
@@ -514,9 +512,10 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     {
         $tokens['ExpiresIn'] = Carbon::now()->addSeconds($tokens['ExpiresIn'] - 10)->timestamp;
 
-        $days = $this->getDefaultAppConfig()['refresh-token-expiration'];
-
         if ($updateRefreshTokenExp) {
+
+            $days = $this->getDefaultAppConfig()['refresh-token-expiration'];
+
             $tokens['RefreshTokenExpires'] = Carbon::now()->addDays($days)->timestamp;
         }
 
@@ -528,7 +527,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      *
      * @param array $tokens
      */
-    protected function storeCognitoTokens(array $tokens)
+    protected function storeCognitoTokensInSession(array $tokens)
     {
         $this->session->put($this->getCognitoTokensName(), $tokens);
     }
