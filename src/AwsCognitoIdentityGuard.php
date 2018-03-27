@@ -296,14 +296,21 @@ class AwsCognitoIdentityGuard implements StatefulGuard
             // If the refresh token has also expired then we're unable to request new
             // tokens.
             if ($tokens['RefreshTokenExpires'] < $now) {
+                $this->clearUserDataFromSession();
                 return null;
             }
 
-            if (!$tokens = $this->refreshCognitoTokens($tokens['RefreshToken'])) {
+            $refreshToken = $tokens['RefreshToken'];
+            $refreshTokenExp = $tokens['RefreshTokenExpires'];
+
+            if (!$tokens = $this->refreshCognitoTokens($refreshToken)) {
+                $this->clearUserDataFromSession();
                 return null;
             }
 
             $tokens = $this->addTokenExpiryTimes($tokens, false);
+            $tokens['RefreshToken'] = $refreshToken;
+            $tokens['RefreshTokenExpires'] = $refreshTokenExp;
 
             $this->storeCognitoTokensInSession($tokens);
         }
@@ -679,15 +686,15 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     {
         $user = $this->user();
 
-        // If we have an event dispatcher instance, we can fire off the logout event
-        // so any further processing can be done. This allows the developer to be
-        // listening for anytime a user signs out of this application manually.
         $this->clearUserDataFromStorage();
 
         if (!is_null($this->user)) {
             $this->cycleRememberToken($user);
         }
 
+        // If we have an event dispatcher instance, we can fire off the logout event
+        // so any further processing can be done. This allows the developer to be
+        // listening for anytime a user signs out of this application manually.
         if (isset($this->events)) {
             $this->events->dispatch(new Logout($user));
         }
@@ -705,13 +712,30 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     /**
      * Remove the user data from the session and cookies.
      *
-     * @return void
+     * @throws \RuntimeException
      */
     protected function clearUserDataFromStorage()
     {
+       $this->clearUserDataFromSession();
+       $this->forgetRecallerCookie();
+    }
+
+    /**
+     * Remove the user data from the session.
+     */
+    protected function clearUserDataFromSession()
+    {
         $this->session->remove($this->getName());
         $this->session->remove($this->getCognitoTokensName());
+    }
 
+    /**
+     * Forget the recaller cookie.
+     *
+     * @throws \RuntimeException
+     */
+    protected function forgetRecallerCookie()
+    {
         if (!is_null($this->recaller())) {
             $this->getCookieJar()->queue($this->getCookieJar()
                 ->forget($this->getRecallerName()));
