@@ -206,8 +206,8 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     /**
      * Pull a user from the repository by its "remember me" cookie token.
      *
-     * @param Recaller $recaller
-     * @return mixed
+     * @param \Pallant\LaravelAwsCognitoAuth\Recaller $recaller
+     * @return null|\Illuminate\Contracts\Auth\Authenticatable
      */
     protected function getUserFromRecaller($recaller)
     {
@@ -230,7 +230,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     /**
      * Get a user's cognito tokens from their "remember me" cookie.
      *
-     * @param Recaller $recaller
+     * @param \Pallant\LaravelAwsCognitoAuth\Recaller $recaller
      * @return null|array
      */
     protected function getCognitoTokensFromRecaller($recaller)
@@ -430,7 +430,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * @param array $credentials
      * @param bool $remember
      * @param mixed $errorHandler
-     * @return bool|\Pallant\LaravelAwsCognitoAuth\AuthAttempt
+     * @return mixed
      */
     public function attempt(array $credentials = [], $remember = false, $errorHandler = null)
     {
@@ -488,7 +488,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     }
 
     /**
-     * @param $handler
+     * @param mixed $handler
      * @return mixed|null
      */
     protected function getErrorHandler($handler)
@@ -597,7 +597,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      *
      * @param \Illuminate\Contracts\Auth\Authenticatable $user
      * @param bool $remember
-     * @return void
      */
     public function login(AuthenticatableContract $user, $remember = false)
     {
@@ -625,7 +624,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * Update the session with the given ID.
      *
      * @param string $id
-     * @return void
      */
     protected function updateSession($id)
     {
@@ -638,7 +636,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * Create a new "remember me" token for the user if one doesn't already exist.
      *
      * @param \Illuminate\Contracts\Auth\Authenticatable $user
-     * @return void
      */
     protected function ensureRememberTokenIsSet(AuthenticatableContract $user)
     {
@@ -652,7 +649,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      *
      * @param \Illuminate\Contracts\Auth\Authenticatable $user
      * @param array|null $cognitoTokens
-     * @return void
      */
     protected function queueRecallerCookie(AuthenticatableContract $user, array $cognitoTokens = null)
     {
@@ -679,8 +675,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
 
     /**
      * Log the user out of the application.
-     *
-     * @return void
      */
     public function logout()
     {
@@ -746,7 +740,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * Refresh the "remember me" token for the user.
      *
      * @param \Illuminate\Contracts\Auth\Authenticatable $user
-     * @return void
      */
     protected function cycleRememberToken(AuthenticatableContract $user)
     {
@@ -759,7 +752,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * Register an authentication attempt event listener.
      *
      * @param mixed $callback
-     * @return void
      */
     public function attempting($callback)
     {
@@ -773,7 +765,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      *
      * @param array $credentials
      * @param bool $remember
-     * @return void
      */
     protected function fireAttemptEvent(array $credentials, $remember = false)
     {
@@ -789,7 +780,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      *
      * @param \Illuminate\Contracts\Auth\Authenticatable $user
      * @param bool $remember
-     * @return void
      */
     protected function fireLoginEvent($user, $remember = false)
     {
@@ -802,7 +792,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * Fire the authenticated event if the dispatcher is set.
      *
      * @param \Illuminate\Contracts\Auth\Authenticatable $user
-     * @return void
      */
     protected function fireAuthenticatedEvent($user)
     {
@@ -816,7 +805,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      *
      * @param \Illuminate\Contracts\Auth\Authenticatable|null $user
      * @param array $credentials
-     * @return void
      */
     protected function fireFailedEvent($user, array $credentials)
     {
@@ -945,7 +933,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * Set the cookie creator instance used by the guard.
      *
      * @param \Illuminate\Contracts\Cookie\QueueingFactory $cookie
-     * @return void
      */
     public function setCookieJar(CookieJar $cookie)
     {
@@ -966,7 +953,6 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      * Set the event dispatcher instance.
      *
      * @param \Illuminate\Contracts\Events\Dispatcher $events
-     * @return void
      */
     public function setDispatcher(Dispatcher $events)
     {
