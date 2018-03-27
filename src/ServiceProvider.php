@@ -2,10 +2,9 @@
 
 namespace Pallant\LaravelAwsCognitoAuth;
 
-use Illuminate\Foundation\Application;
-use Illuminate\Foundation\Support\Providers\AuthServiceProvider;
+use Illuminate\Support\ServiceProvider as BaseServiceProvider;
 
-class ServiceProvider extends AuthServiceProvider
+class ServiceProvider extends BaseServiceProvider
 {
     /**
      * Boot any authentication / authorization services.
@@ -28,19 +27,19 @@ class ServiceProvider extends AuthServiceProvider
      */
     protected function registerGuard()
     {
-        $this->app['auth']->extend('aws-cognito', function (Application $app, $name, array $config) {
+        $this->app['auth']->extend('aws-cognito', function ($app, $name, array $config) {
 
-            $client = $app->make('aws')->createCognitoIdentityProvider();
+            $client = $this->app->make('aws')->createCognitoIdentityProvider();
 
-            $provider = $app['auth']->createUserProvider($config['provider']);
+            $provider = $this->app['auth']->createUserProvider($config['provider']);
 
             $guard = new AwsCognitoIdentityGuard(
                 $name,
                 $client,
                 $provider,
-                $app['session.store'],
-                $app['request'],
-                $app['config']['aws-cognito-auth']
+                $this->app['session.store'],
+                $this->app['request'],
+                $this->app['config']['aws-cognito-auth']
             );
 
             $guard->setCookieJar($this->app['cookie']);
