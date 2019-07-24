@@ -690,7 +690,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
         // so any further processing can be done. This allows the developer to be
         // listening for anytime a user signs out of this application manually.
         if (isset($this->events)) {
-            $this->events->dispatch(new Logout($user));
+            $this->events->dispatch(new Logout($this->name, $user));
         }
 
         // Once we have fired the logout event we will clear the users out of memory
@@ -770,7 +770,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     {
         if (isset($this->events)) {
             $this->events->dispatch(new Attempting(
-                $credentials, $remember
+                $this->name, $credentials, $remember
             ));
         }
     }
@@ -784,7 +784,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     protected function fireLoginEvent($user, $remember = false)
     {
         if (isset($this->events)) {
-            $this->events->dispatch(new Login($user, $remember));
+            $this->events->dispatch(new Login($this->name, $user, $remember));
         }
     }
 
@@ -796,7 +796,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     protected function fireAuthenticatedEvent($user)
     {
         if (isset($this->events)) {
-            $this->events->dispatch(new Authenticated($user));
+            $this->events->dispatch(new Authenticated($this->name, $user));
         }
     }
 
@@ -809,7 +809,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     protected function fireFailedEvent($user, array $credentials)
     {
         if (isset($this->events)) {
-            $this->events->dispatch(new Failed($user, $credentials));
+            $this->events->dispatch(new Failed($this->name, $user, $credentials));
         }
     }
 
