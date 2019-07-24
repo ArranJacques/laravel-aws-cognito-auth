@@ -24,7 +24,7 @@ class AuthAttemptException extends RuntimeException
     }
 
     /**
-     * @return \Pallant\LaravelAwsCognitoAuth\AuthAttempt
+     * @return array|null
      */
     public function getResponse()
     {
