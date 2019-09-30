@@ -12,8 +12,8 @@
   "require": {
     "php": ">= 5.6.4",
     "aws/aws-sdk-php-laravel": "^3.1",
-    "nesbot/carbon": "~1.20",
-    "laravel/framework": "^5.7.0"
+    "nesbot/carbon": "^2.0.0",
+    "laravel/framework": "^5.7.0 | ^6.0.0"
   },
   "autoload": {
     "psr-0": {
