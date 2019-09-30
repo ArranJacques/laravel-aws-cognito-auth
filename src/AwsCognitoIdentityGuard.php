@@ -18,6 +18,7 @@ use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Contracts\Cookie\QueueingFactory as CookieJar;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Session\Session;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
@@ -548,8 +549,8 @@ class AwsCognitoIdentityGuard implements StatefulGuard
     protected function attemptCognitoAuthentication(array $credentials)
     {
         if (
-            !$username = array_get($credentials, $this->config['username-attribute']) OR
-            !$password = array_get($credentials, 'password')
+            !$username = Arr::get($credentials, $this->config['username-attribute']) OR
+            !$password = Arr::get($credentials, 'password')
         ) {
             return new AuthAttempt(false);
         }
@@ -830,7 +831,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      */
     public function getCognitoAccessToken()
     {
-        return array_get($this->cognitoTokens, 'AccessToken');
+        return Arr::get($this->cognitoTokens, 'AccessToken');
     }
 
     /**
@@ -840,7 +841,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      */
     public function getCognitoIdToken()
     {
-        return array_get($this->cognitoTokens, 'IdToken');
+        return Arr::get($this->cognitoTokens, 'IdToken');
     }
 
     /**
@@ -850,7 +851,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      */
     public function getCognitoRefreshToken()
     {
-        return array_get($this->cognitoTokens, 'RefreshToken');
+        return Arr::get($this->cognitoTokens, 'RefreshToken');
     }
 
     /**
@@ -861,7 +862,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      */
     public function getCognitoTokensExpiryTime()
     {
-        return array_get($this->cognitoTokens, 'ExpiresIn');
+        return Arr::get($this->cognitoTokens, 'ExpiresIn');
     }
 
     /**
@@ -871,7 +872,7 @@ class AwsCognitoIdentityGuard implements StatefulGuard
      */
     public function getCognitoRefreshTokenExpiryTime()
     {
-        return array_get($this->cognitoTokens, 'RefreshTokenExpires');
+        return Arr::get($this->cognitoTokens, 'RefreshTokenExpires');
     }
 
     /**
